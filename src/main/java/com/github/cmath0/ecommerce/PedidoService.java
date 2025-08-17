@@ -107,9 +107,11 @@ public class PedidoService {
 				
 				if (novoStatus == StatusPedido.PAGO) {
 					reduzirEstoqueDosProdutos(pedido);
+					
+					System.out.println("📧 Enviando e-mail de confirmação de pagamento...");
 				}
 				if (novoStatus == StatusPedido.CANCELADO) {
-					retornarProdutosAoEstoque(pedido);
+					System.out.println("📧 Enviando e-mail de confirmação de cancelamento do pedido...");
 				}
 				break;
 			case PAGO:
@@ -117,17 +119,25 @@ public class PedidoService {
 					lancarExcecaoTransicaoInvalida(statusAtual, novoStatus);
 				}
 				
+				if (novoStatus == StatusPedido.ENVIADO) {
+					System.out.println("📧 Enviando e-mail de pedido enviado à transportadora...");
+				}
+				
 				if (novoStatus == StatusPedido.CANCELADO) {
 					retornarProdutosAoEstoque(pedido);
 					
 					// efetuar reembolso
 					System.out.println("Reembolso solicitado para o pedido número: " + pedido.getId());
+					
+					System.out.println("📧 Enviando e-mail de confirmação de cancelamento do pedido...");
 				}
 				break;
 			case ENVIADO:
 				if (novoStatus != StatusPedido.ENTREGUE) {
 					lancarExcecaoTransicaoInvalida(statusAtual, novoStatus);
 				}
+				
+				System.out.println("📧 Enviando e-mail de confirmação de entrega do pedido...");
 				break;
 			case ENTREGUE:
 				throw new TransicaoInvalidaStatusException("Não é possível alterar o status de um pedido já entregue.");
