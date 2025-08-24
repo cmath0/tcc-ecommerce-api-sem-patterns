@@ -21,6 +21,7 @@ public class PedidoService {
 	public Pedido efetuarPedido(Pedido pedido) {
 		Map<Long, Produto> produtosDoPedido = new HashMap<>();
 		pedido.setValorTotal(0.0);
+		pedido.setValorSubtotal(0.0);
 		pedido.setStatus(StatusPedido.AGUARDANDO_PAGAMENTO.getCodigo());
 		
 		// verificar estoque dos produtos e calcular valor total do pedido
@@ -42,45 +43,47 @@ public class PedidoService {
 			produto.setQuantidadeEstoque(produto.getQuantidadeEstoque() - 1);
 			produtosDoPedido.put(produto.getId(), produto);
 			
-			pedido.setValorTotal(pedido.getValorTotal() + produto.getPreco());
+			pedido.setValorSubtotal(pedido.getValorSubtotal() + produto.getPreco());
 		}
 		
-		// aplicar desconto baseado no nivel do cliente
-		if (pedido.getClienteId() != null) {
-			if (!clienteRepository.existsById(pedido.getClienteId())) {
-				throw new IllegalArgumentException("Cliente inexistente. Id: " + pedido.getClienteId());
-			}
-
-			Cliente cliente = clienteRepository.getReferenceById(pedido.getClienteId());
-			
-			if (cliente.getNivel() < 1 || cliente.getNivel() > 4) {
-				throw new IllegalArgumentException("Nível do cliente inválido. Nível: " + cliente.getNivel());
-			}
-			
-			double desconto = 0.0;
-			
-			if (cliente.getNivel() == 1) {
-				desconto = 0.0; // sem desconto
-			} else if (cliente.getNivel() == 2) {
-				desconto = 0.05; // 5%
-			} else if (cliente.getNivel() == 3) {
-				desconto = 0.10; // 10%
-				
-				if (pedido.getValorTotal() > 200.00) {
-					desconto += 0.02; // mais 2% se valor total > 200
-				}
-			} else if (cliente.getNivel() == 4) {
-				desconto = 0.15; // 15%
-				
-				if (pedido.getValorTotal() > 200.00) {
-					desconto += 0.03; // mais 3% se valor total > 200
-				}
-			}
-			
-			pedido.setValorTotal(pedido.getValorTotal() * (1 - desconto));
-		}
+		pedido.setValorTotal(pedido.getValorSubtotal());
+		
+		aplicarDescontos(pedido);
 		
 		return repository.save(pedido);
+	}
+
+	private void aplicarDescontos(Pedido pedido) {
+		// aplicar desconto de acordo com ordem
+		
+		// 1 - volume (acima de 200 reais, 10% desconto)
+		if (pedido.getValorSubtotal() > 200.00) {
+			double desconto = pedido.getValorSubtotal() * 0.10; // 10% de desconto
+			pedido.setValorDescontos(pedido.getValorDescontos() + desconto);
+			pedido.setValorTotal(pedido.getValorTotal() - desconto);
+		}
+		
+		// 2 - por tipo cliente (nível 2 ou 3, 5% ou 10% de desconto)
+		if (pedido.getClienteId() != null && clienteRepository.existsById(pedido.getClienteId())) {
+			Cliente cliente = clienteRepository.getReferenceById(pedido.getClienteId());
+			
+			if (cliente.getNivel() == 2) {
+				double desconto = pedido.getValorSubtotal() * 0.05; // 5% de desconto
+				pedido.setValorDescontos(pedido.getValorDescontos() + desconto);
+				pedido.setValorTotal(pedido.getValorTotal() - desconto);
+			} else if (cliente.getNivel() == 3) {
+				double desconto = pedido.getValorSubtotal() * 0.10; // 10% de desconto
+				pedido.setValorDescontos(pedido.getValorDescontos() + desconto);
+				pedido.setValorTotal(pedido.getValorTotal() - desconto);
+			}
+		}
+		
+		// 3 - cupom - 50 reais off em compras acima de 500 reais
+		if ("PROMO50".equals(pedido.getCupomDesconto()) && pedido.getValorSubtotal() > 500.00) {
+			double desconto = 50.00; // 50 reais de desconto
+			pedido.setValorDescontos(pedido.getValorDescontos() + desconto);
+			pedido.setValorTotal(pedido.getValorTotal() - desconto);
+		}
 	}
 	
 	public Pedido atualizarStatusPedido(long id, Pedido pedidoBody) {
