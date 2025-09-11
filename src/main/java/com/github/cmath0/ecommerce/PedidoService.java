@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class PedidoService {
 
+	@Autowired FreteService freteService;
+	
 	@Autowired PedidoRepository repository;
 	@Autowired ProdutoRepository produtoRepository;
 	@Autowired ClienteRepository clienteRepository;
@@ -49,6 +51,10 @@ public class PedidoService {
 		pedido.setValorTotal(pedido.getValorSubtotal());
 		
 		aplicarDescontos(pedido);
+		
+		CotacaoFrete cotacaoFrete = freteService.calcularFrete(pedido);
+		pedido.setValorFrete(cotacaoFrete.getValorFrete());
+		pedido.setValorTotal(pedido.getValorTotal() + cotacaoFrete.getValorFrete());
 		
 		return repository.save(pedido);
 	}
